@@ -56,10 +56,10 @@ def filter_repo(tmp_path, rname, repo, modules):
     rpath = tmp_path/rname
     rbranch = repo["target"].split()[1] if repo.get("target") else "_git_aggregated"
     # Fetch the specified branch from the remote repo
-    if git["remote", "get-url"] & TF(128):
-        git("remote", "add", rname, rpath)
-    else:
+    if git["remote", "get-url", rname] & TF:
         git("remote", "set-url", rname, rpath)
+    else:
+        git("remote", "add", rname, rpath)
     git("fetch", "--depth", "1", rname, rbranch)
     # Checkout changes for each of the modules listed
     for fname in next(os.walk(rpath))[1]:
@@ -78,7 +78,8 @@ def filter_repo(tmp_path, rname, repo, modules):
     print("Partial message:\n{}".format(message))
     return message
 
-def filter_repos(tmp_path, repos, addons, push, gitlab_ci):
+def filter_repos(output_path, tmp_path, repos, addons, push, gitlab_ci):
+    os.chdir(output_path)
     # Remove old modules
     for fname in next(os.walk("."))[1]:
         if is_module(fname):
@@ -129,19 +130,18 @@ def update_ci_urls(repos):
 
 # Create a git repo if not present and aggregate addon repositories
 def initialize_repos(output_path, input_path, tmp_path, repos_suffix):
+    os.chdir(tmp_path)
     if not output_path.is_dir():
         print("Initializing git repository in '{}'".format(output_path))
         Path(output_path).mkdir(parents=True, exist_ok=True)
-        git("-C", output_path, "init")
+    git("-C", output_path, "init")
 
     repos_path = (input_path/"repos").with_suffix(repos_suffix)
     command = gitaggregate["-c", repos_path]
     if (input_path/"repos.env").is_file():
         command = command["-e", "--env-file", input_path/"repos.env"]
     print("Writing gitaggregate output to '{}'".format(tmp_path))
-    os.chdir(tmp_path)
     command & FG
-    os.chdir(output_path)
 
 #####################################################################
 
@@ -159,9 +159,9 @@ def main(input_path=None, output_path=None, clean=True, push=False, gitlab_ci=Fa
         dump_yml("repos.yml", update_ci_urls(repos))
 
     try:
-        initialize_repos(output_path, input_path, tmp_path, repos_suffix)
         print("Filtering addons to '{}'".format(output_path))
-        filter_repos(tmp_path, repos, addons, push, gitlab_ci)
+        initialize_repos(output_path, input_path, tmp_path, repos_suffix)
+        filter_repos(output_path, tmp_path, repos, addons, push, gitlab_ci)
     except Exception as e:
         if clean:
             rmtree(tmp_path)
