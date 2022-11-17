@@ -7,8 +7,9 @@ addons **addons.yml** format.
 
 # Installation
 
-- After cloning locally with `python3 -m pip install -U .`
-- From remote with `python3 -m pip install -U git+https://github.com/ForgeFlow/odoo-filter-addons`
+- Via `pipx` with `pipx install odoo-filter-addons`
+- Via `pip` with `python3 -m pip install odoo-filter-addons`
+- After cloning locally with `python3 -m pip install .`
 
 # Usage
 
