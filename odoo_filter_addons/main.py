@@ -171,7 +171,8 @@ def main(input_path=None, output_path=None, clean=True, push=False, gitlab_ci=Fa
         rmtree(tmp_path)
 
 # CLI entry point
-@click.command()
+@click.command(context_settings=dict(help_option_names=['-h', '--help']))
+@click.version_option()
 @click.option("-i", "--input-path", help="Path to directory containing configuration files.")
 @click.option("-o", "--output-path", help="Path to the directory that will contain the output.")
 @click.option("-c", "--clean/--no-clean", is_flag=True, default=True, help="Clean intermediate output.")
