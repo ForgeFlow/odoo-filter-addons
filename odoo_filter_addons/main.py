@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 from string import Template
 from io import StringIO
 from fnmatch import fnmatch
 from pathlib import Path
 from tempfile import mkdtemp
 from shutil import rmtree
+from contextlib import contextmanager
 
 import yaml
 import click
 from dotenv import dotenv_values
-from plumbum import TF, FG
-from plumbum.cmd import git, gitaggregate
+from plumbum import TF
+from plumbum.cmd import git
 from plumbum.commands.processes import ProcessExecutionError
+from git_aggregator.main import main as gitaggregate
 
 #####################################################################
 
@@ -128,6 +131,15 @@ def update_ci_urls(repos):
                 repo["remotes"][name] = gitlab_url.format(project)
     return repos
 
+@contextmanager
+def set_argv(new_argv):
+    old_argv = sys.argv
+    sys.argv = new_argv
+    try:
+        yield
+    finally:
+        sys.argv = old_argv
+
 # Create a git repo if not present and aggregate addon repositories
 def initialize_repos(output_path, input_path, tmp_path, repos_suffix):
     os.chdir(tmp_path)
@@ -137,11 +149,12 @@ def initialize_repos(output_path, input_path, tmp_path, repos_suffix):
     git("-C", output_path, "init")
 
     repos_path = (input_path/"repos").with_suffix(repos_suffix)
-    command = gitaggregate["-c", repos_path]
+    new_argv = ["gitaggregate", "-c", str(repos_path)]
     if (input_path/"repos.env").is_file():
-        command = command["-e", "--env-file", input_path/"repos.env"]
+        new_argv += ["-e", "--env-file", str(input_path/"repos.env")]
+    with set_argv(new_argv):
+        gitaggregate()
     print("Writing gitaggregate output to '{}'".format(tmp_path))
-    command & FG
 
 #####################################################################
 
