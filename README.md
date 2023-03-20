@@ -7,7 +7,7 @@ addons **addons.yml** format.
 
 # Installation
 
-- Via `pipx` with `pipx install odoo-filter-addons`
+- Via `pipx` with `pipx install odoo-filter-addons` (recommended)
 - Via `pip` with `python3 -m pip install odoo-filter-addons`
 - After cloning locally with `python3 -m pip install .`
 

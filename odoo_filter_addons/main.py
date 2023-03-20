@@ -18,6 +18,8 @@ from plumbum.cmd import git
 from plumbum.commands.processes import ProcessExecutionError
 from git_aggregator.main import main as gitaggregate
 
+from .version import __version__
+
 #####################################################################
 
 class UserException(Exception):
@@ -98,8 +100,9 @@ def filter_repos(output_path, tmp_path, repos, addons, push, gitlab_ci):
         messages.append(repo_message)
     print_header("Finished filtering", '*')
     # Commit changes, if any, and push them to remote if specified
-    message = "\n".join(filter(None, messages))
-    if message and git["diff", "--staged", "--quiet"] & TF(1):
+    if filter(None, messages) and git["diff", "--staged", "--quiet"] & TF(1):
+        messages = [f"[AUTO] {__package__} {__version__}"] + messages
+        message = "\n".join(messages)
         git("commit", "-m", message)
         print("Changes commited")
         if push:
