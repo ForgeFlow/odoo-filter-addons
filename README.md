@@ -25,8 +25,9 @@ but can be overridden through the `-i/--input-path` and `-o/--output-path` flags
 respectively. Additionally, some other flags can be provided to alter the behavior of
 the program:
 
-| Flag                      | Default | Description                                               |
-|---------------------------|---------|-----------------------------------------------------------|
-| -c, --clean / --no-clean  | True    | Clean intermediate output                                 |
-| -p, --push / --no-push    | False   | Push to remote repo if any changes are commited           |
-| -g, --gitlab-ci           | False   | Update client addon repository in GitLab CI               |
+| Flag                          | Default | Description                                               |
+|-------------------------------|---------|-----------------------------------------------------------|
+| -c, --clean / --no-clean      | True    | Clean intermediate output                                 |
+| -r, --release / --no-release  | False   | Create a release commit if any changes are made           |
+| -p, --push / --no-push        | False   | Push to remote repo if any changes are commited           |
+| -g, --gitlab-ci               | False   | Update client addon repository in GitLab CI               |

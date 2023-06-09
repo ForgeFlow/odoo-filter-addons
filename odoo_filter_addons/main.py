@@ -83,7 +83,7 @@ def filter_repo(tmp_path, rname, repo, modules):
     print("Partial message:\n{}".format(message))
     return message
 
-def filter_repos(output_path, tmp_path, repos, addons, push, gitlab_ci):
+def filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci):
     os.chdir(output_path)
     # Remove old modules
     for fname in next(os.walk("."))[1]:
@@ -100,7 +100,10 @@ def filter_repos(output_path, tmp_path, repos, addons, push, gitlab_ci):
         messages.append(repo_message)
     print_header("Finished filtering", '*')
     # Commit changes, if any, and push them to remote if specified
-    if filter(None, messages) and git["diff", "--staged", "--quiet"] & TF(1):
+    if not release:
+        git("restore", "--staged", ".")
+        print("Release disabled, nothing commited")
+    elif filter(None, messages) and git["diff", "--staged", "--quiet"] & TF(1):
         messages = [f"[AUTO] {__package__} {__version__}"] + messages
         message = "\n".join(messages)
         git("commit", "-m", message)
@@ -162,7 +165,7 @@ def initialize_repos(output_path, input_path, tmp_path, repos_suffix):
 #####################################################################
 
 # API entry point
-def main(input_path=None, output_path=None, clean=True, push=False, gitlab_ci=False):
+def main(input_path=None, output_path=None, clean=True, release=False, push=False, gitlab_ci=False):
     input_path = Path(input_path).resolve() if input_path else Path.cwd()
     output_path = Path(output_path).resolve() if output_path else Path.cwd()
     tmp_path = Path(mkdtemp())
@@ -177,7 +180,7 @@ def main(input_path=None, output_path=None, clean=True, push=False, gitlab_ci=Fa
     try:
         print("Filtering addons to '{}'".format(output_path))
         initialize_repos(output_path, input_path, tmp_path, repos_suffix)
-        filter_repos(output_path, tmp_path, repos, addons, push, gitlab_ci)
+        filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci)
     except Exception as e:
         if clean:
             rmtree(tmp_path)
@@ -192,13 +195,14 @@ def main(input_path=None, output_path=None, clean=True, push=False, gitlab_ci=Fa
 @click.option("-i", "--input-path", help="Path to directory containing configuration files.")
 @click.option("-o", "--output-path", help="Path to the directory that will contain the output.")
 @click.option("-c", "--clean/--no-clean", is_flag=True, default=True, help="Clean intermediate output.")
+@click.option("-r", "--release/--no-release", is_flag=True, default=False, help="Create a relase commit if any changes are made.")
 @click.option("-p", "--push/--no-push", is_flag=True, default=False, help="Push to remote repo if any changes are commited.")
 @click.option("-g", "--gitlab-ci", is_flag=True, default=False, help="Update client addon repository in GitLab CI.")
-def cli_main(input_path, output_path, clean, push, gitlab_ci):
+def cli_main(input_path, output_path, clean, release, push, gitlab_ci):
     import sys
     import traceback
     try:
-        main(input_path, output_path, clean, push, gitlab_ci)
+        main(input_path, output_path, clean, release, push, gitlab_ci)
         sys.exit(0)
     except UserException as e:
         print("User error:", e)
