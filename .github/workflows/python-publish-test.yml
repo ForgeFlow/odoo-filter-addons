@@ -1,8 +1,11 @@
-name: Upload Python Package to PyPI
+name: Upload Python Package to TestPyPI
 
 on:
-  release:
-    types: [published]
+  push:
+    paths:
+      - odoo_filter_addons/version.py
+    branches-ignore:
+      - master
 
 permissions:
   contents: read
@@ -25,3 +28,5 @@ jobs:
       run: python -m build
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@v1.8.6
+      with:
+        repository-url: https://test.pypi.org/legacy/
