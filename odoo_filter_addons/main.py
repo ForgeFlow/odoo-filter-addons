@@ -31,10 +31,8 @@ def print_header(msg, sym):
 def load_yml(path, expand=False):
     if path.with_suffix(".yml").is_file():
         path = path.with_suffix(".yml")
-        suffix = ".yml"
     elif path.with_suffix(".yaml").is_file():
         path = path.with_suffix(".yaml")
-        suffix = ".yaml"
     else:
         raise UserException("YAML file {}.y[a]ml not found".format(path))
 
@@ -45,11 +43,34 @@ def load_yml(path, expand=False):
             yml = yaml.safe_load(StringIO(templated).read())
         else:
             yml = yaml.safe_load(f.read())
-    return yml, suffix
+    return yml
 
 def dump_yml(path, yml):
     with open(path, "w") as f:
         f.write(yaml.safe_dump(yml))
+
+# Remove targets from repositories, as they cause issues with gitaggregator>=3.0.0
+# https://github.com/acsone/git-aggregator/pull/55
+def remove_targets(repos):
+    for repo in repos.values():
+        if repo.get("target"):
+            del repo["target"]
+    return repos
+
+# Update remote URLs to use GitLab access token
+def update_remotes(repos):
+    try:
+        token = os.environ["CI_JOB_TOKEN"]
+        host = os.environ["CI_SERVER_HOST"]
+    except KeyError as e:
+        raise UserException("Unset environment variable {}".format(e))
+    gitlab_url = "https://gitlab-ci-token:{}@{}/{{}}".format(token, host)
+    for repo in repos.values():
+        for name, url in repo["remotes"].items():
+            if "git@gitlab.com:" in url:
+                project = url.split(":")[1]
+                repo["remotes"][name] = gitlab_url.format(project)
+    return repos
 
 #####################################################################
 
@@ -122,21 +143,6 @@ def filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci)
     else:
         print("No changes, nothing commited")
 
-# Update remote URLs to use GitLab access token
-def update_ci_urls(repos):
-    try:
-        token = os.environ["CI_JOB_TOKEN"]
-        host = os.environ["CI_SERVER_HOST"]
-    except KeyError as e:
-        raise UserException("Unset environment variable {}".format(e))
-    gitlab_url = "https://gitlab-ci-token:{}@{}/{{}}".format(token, host)
-    for repo in repos.values():
-        for name, url in repo["remotes"].items():
-            if "git@gitlab.com:" in url:
-                project = url.split(":")[1]
-                repo["remotes"][name] = gitlab_url.format(project)
-    return repos
-
 @contextmanager
 def set_argv(new_argv):
     old_argv = sys.argv
@@ -147,39 +153,39 @@ def set_argv(new_argv):
         sys.argv = old_argv
 
 # Create a git repo if not present and aggregate addon repositories
-def initialize_repos(output_path, input_path, tmp_path, repos_suffix):
-    os.chdir(tmp_path)
+def initialize_repos(output_path, tmp_path, repos):
     if not output_path.is_dir():
         print("Initializing git repository in '{}'".format(output_path))
         Path(output_path).mkdir(parents=True, exist_ok=True)
     git("-C", output_path, "init")
 
-    repos_path = (input_path/"repos").with_suffix(repos_suffix)
-    new_argv = ["gitaggregate", "-c", str(repos_path)]
-    if (input_path/"repos.env").is_file():
-        new_argv += ["-e", "--env-file", str(input_path/"repos.env")]
+    os.chdir(tmp_path)
+    dump_yml("repos.yml", repos)
+
+    new_argv = ["gitaggregate", "-c", "repos.yml"]
     with set_argv(new_argv):
         gitaggregate()
-    print("Writing gitaggregate output to '{}'".format(tmp_path))
+    print("gitaggregate output written to '{}'".format(tmp_path))
 
 #####################################################################
 
 # API entry point
-def main(input_path=None, output_path=None, clean=True, release=False, push=False, gitlab_ci=False):
+def api_main(input_path=None, output_path=None, clean=True, release=False, push=False, gitlab_ci=False):
     input_path = Path(input_path).resolve() if input_path else Path.cwd()
     output_path = Path(output_path).resolve() if output_path else Path.cwd()
     tmp_path = Path(mkdtemp())
 
     print("Loading configuration files from '{}'".format(input_path))
-    repos, repos_suffix = load_yml(input_path/"repos", True)
-    addons, addons_suffix = load_yml(input_path/"addons")
+    repos = load_yml(input_path/"repos", True)
+    addons = load_yml(input_path/"addons")
+
+    repos = remove_targets(repos)
     if gitlab_ci:
-        repos = update_ci_urls(repos)
-        dump_yml("repos.yml", update_ci_urls(repos))
+        repos = update_remotes(repos)
 
     try:
         print("Filtering addons to '{}'".format(output_path))
-        initialize_repos(output_path, input_path, tmp_path, repos_suffix)
+        initialize_repos(output_path, tmp_path, repos)
         filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci)
     except Exception as e:
         if clean:
@@ -202,7 +208,7 @@ def cli_main(input_path, output_path, clean, release, push, gitlab_ci):
     import sys
     import traceback
     try:
-        main(input_path, output_path, clean, release, push, gitlab_ci)
+        api_main(input_path, output_path, clean, release, push, gitlab_ci)
         sys.exit(0)
     except UserException as e:
         print("User error:", e)
