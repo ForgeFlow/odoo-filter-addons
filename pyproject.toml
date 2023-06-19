@@ -12,10 +12,11 @@ classifiers = [
     "Framework :: Odoo",
     "Programming Language :: Python :: 3"
 ]
+
 requires-python = ">=3"
-# Pin git-aggregator to 2.1.0 to prevent weird bug when using 'target' in repos.yml
-# TODO: pin other packages as well to prevent future issues
-dependencies= ["pyyaml", "click", "python-dotenv", "plumbum", "git-aggregator==2.1.0"]
+# Ensure git-aggregator>=3.0.0 to prevent branch divergence issues with recent git versions
+# https://github.com/acsone/git-aggregator/pull/64
+dependencies= ["pyyaml", "click", "python-dotenv", "plumbum", "git-aggregator>=3.0.0"]
 dynamic = ["version"]
 
 [project.scripts]
