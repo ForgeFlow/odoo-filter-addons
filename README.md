@@ -27,7 +27,8 @@ the program:
 
 | Flag                          | Default | Description                                               |
 |-------------------------------|---------|-----------------------------------------------------------|
-| -c, --clean / --no-clean      | True    | Clean intermediate output                                 |
+| -c, --clean / --no-clean      | True    | Clean gitaggregate output                                 |
+| -C, --cache / --no-cache      | False   | Cache gitaggregate output, overrides -c                   |
 | -r, --release / --no-release  | False   | Create a release commit if any changes are made           |
 | -p, --push / --no-push        | False   | Push to remote repo if any changes are commited           |
 | -g, --gitlab-ci               | False   | Update client addon repository in GitLab CI               |
