@@ -78,8 +78,8 @@ def is_module(path):
     path = Path(path)
     return path.is_dir() and (path/"__manifest__.py").is_file()
 
-def filter_repo(tmp_path, rname, repo, modules):
-    rpath = tmp_path/rname
+def filter_repo(agg_path, rname, repo, modules):
+    rpath = agg_path/rname
     rbranch = repo["target"].split()[1] if repo.get("target") else "_git_aggregated"
     # Fetch the specified branch from the remote repo
     if git["remote", "get-url", rname] & TF:
@@ -104,7 +104,7 @@ def filter_repo(tmp_path, rname, repo, modules):
     print(f"Partial message:\n{message}")
     return message
 
-def filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci):
+def filter_repos(output_path, agg_path, repos, addons, release, push, gitlab_ci):
     os.chdir(output_path)
     # Remove old modules
     for fname in next(os.walk("."))[1]:
@@ -122,7 +122,7 @@ def filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci)
         repo = repos.get(rname) or repos.get(f"./{rname}")
         if not repo:
             raise UserException(f"addons.yml entry {rname} not found in repos.yml")
-        repo_message = filter_repo(tmp_path, rname, repo, modules)
+        repo_message = filter_repo(agg_path, rname, repo, modules)
         messages.append(repo_message)
     print_header("Finished filtering", '*')
     # If not in release mode remove files from the index
@@ -159,27 +159,31 @@ def set_argv(new_argv):
         sys.argv = old_argv
 
 # Create a git repo if not present and aggregate addon repositories
-def initialize_repos(output_path, tmp_path, repos):
+def initialize_repos(output_path, agg_path, repos):
     if not output_path.is_dir():
         print(f"Initializing git repository in '{output_path}'")
-        Path(output_path).mkdir(parents=True, exist_ok=True)
+        output_path.mkdir(parents=True, exist_ok=True)
     git("-C", output_path, "init")
 
-    os.chdir(tmp_path)
+    os.chdir(agg_path)
     dump_yml("repos.yml", repos)
 
     new_argv = ["gitaggregate", "-c", "repos.yml"]
     with set_argv(new_argv):
         gitaggregate()
-    print(f"gitaggregate output written to '{tmp_path}'")
-
+    print(f"gitaggregate output written to '{agg_path}'")
 #####################################################################
 
 # API entry point
-def api_main(input_path=None, output_path=None, clean=True, release=False, push=False, gitlab_ci=False):
+def api_main(input_path=None, output_path=None, clean=True, cache=False, release=False, push=False, gitlab_ci=False):
     input_path = Path(input_path).resolve() if input_path else Path.cwd()
     output_path = Path(output_path).resolve() if output_path else Path.cwd()
-    tmp_path = Path(mkdtemp())
+    if cache:
+        clean = False
+        agg_path = Path.home()/".cache"/"odoo-filter-addons"
+        agg_path.mkdir(parents=True, exist_ok=True)
+    else:
+        agg_path = Path(mkdtemp())
 
     print(f"Loading configuration files from '{input_path}'")
     repos = load_yml(input_path/"repos", True)
@@ -191,30 +195,31 @@ def api_main(input_path=None, output_path=None, clean=True, release=False, push=
 
     try:
         print(f"Filtering addons to '{output_path}'")
-        initialize_repos(output_path, tmp_path, repos)
-        filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci)
+        initialize_repos(output_path, agg_path, repos)
+        filter_repos(output_path, agg_path, repos, addons, release, push, gitlab_ci)
     except Exception as e:
         if clean:
-            rmtree(tmp_path)
+            rmtree(agg_path)
         raise e
     if clean:
         print("Cleaning up intermediate output")
-        rmtree(tmp_path)
+        rmtree(agg_path)
 
 # CLI entry point
 @click.command(context_settings=dict(help_option_names=['-h', '--help']))
 @click.version_option()
 @click.option("-i", "--input-path", help="Path to directory containing configuration files.")
 @click.option("-o", "--output-path", help="Path to the directory that will contain the output.")
-@click.option("-c", "--clean/--no-clean", is_flag=True, default=True, help="Clean intermediate output.")
+@click.option("-c", "--clean/--no-clean", is_flag=True, default=True, help="Clean gitaggregate output.")
+@click.option("-C", "--cache/--no-cache", is_flag=True, default=False, help="Cache gitaggregate output, overrides -c.")
 @click.option("-r", "--release/--no-release", is_flag=True, default=False, help="Create a relase commit if any changes are made.")
 @click.option("-p", "--push/--no-push", is_flag=True, default=False, help="Push to remote repo if any changes are commited.")
 @click.option("-g", "--gitlab-ci", is_flag=True, default=False, help="Update client addon repository in GitLab CI.")
-def cli_main(input_path, output_path, clean, release, push, gitlab_ci):
+def cli_main(input_path, output_path, clean, cache, release, push, gitlab_ci):
     import sys
     import traceback
     try:
-        api_main(input_path, output_path, clean, release, push, gitlab_ci)
+        api_main(input_path, output_path, clean, cache, release, push, gitlab_ci)
         sys.exit(0)
     except UserException as e:
         print("User error:", e)
