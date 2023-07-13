@@ -26,7 +26,7 @@ class UserException(Exception):
     pass
 
 def print_header(msg, sym):
-    print("{}\n{}".format(sym*len(msg), msg))
+    print(f"{sym*len(msg)}\n{msg}")
 
 def load_yml(path, expand=False):
     if path.with_suffix(".yml").is_file():
@@ -34,7 +34,7 @@ def load_yml(path, expand=False):
     elif path.with_suffix(".yaml").is_file():
         path = path.with_suffix(".yaml")
     else:
-        raise UserException("YAML file {}.y[a]ml not found".format(path))
+        raise UserException(f"YAML file {path}.y[a]ml not found")
 
     with open(path, "r") as f:
         if expand and path.with_suffix(".env").is_file():
@@ -63,8 +63,8 @@ def update_remotes(repos):
         token = os.environ["CI_JOB_TOKEN"]
         host = os.environ["CI_SERVER_HOST"]
     except KeyError as e:
-        raise UserException("Unset environment variable {}".format(e))
-    gitlab_url = "https://gitlab-ci-token:{}@{}/{{}}".format(token, host)
+        raise UserException(f"Unset environment variable {e}")
+    gitlab_url = f"https://gitlab-ci-token:{token}@{host}/{{}}"
     for repo in repos.values():
         for name, url in repo["remotes"].items():
             if "git@gitlab.com:" in url:
@@ -90,8 +90,8 @@ def filter_repo(tmp_path, rname, repo, modules):
     # Checkout changes for each of the modules listed
     for fname in next(os.walk(rpath))[1]:
         if is_module(rpath/fname) and any([fnmatch(fname, m) for m in modules]):
-            git("checkout", "{}/{}".format(rname, rbranch), fname)
-            print("Added module {}".format(fname))
+            git("checkout", f"{rname}/{rbranch}", fname)
+            print(f"Added module {fname}")
     # Create a message that will allow tracing the commit
     lines = [rname]
     for merge in repo["merges"]:
@@ -99,9 +99,9 @@ def filter_repo(tmp_path, rname, repo, modules):
             last_hash = git("-C", rpath, "ls-remote", "--exit-code", *merge.split()).split()[0]
         else:
             last_hash = git("-C", rpath, "rev-parse", merge.replace(" ", "/"))
-        lines.append("{} {}".format(merge, last_hash).strip())
+        lines.append(f"{merge} {last_hash}".strip())
     message = "\n".join(lines)
-    print("Partial message:\n{}".format(message))
+    print(f"Partial message:\n{message}")
     return message
 
 def filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci):
@@ -109,21 +109,27 @@ def filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci)
     # Remove old modules
     for fname in next(os.walk("."))[1]:
         if is_module(fname):
-            git("rm", "-rf", fname)
+            try:
+                # Remove from index and working tree
+                git("rm", "-rf", fname)
+            except ProcessExecutionError:
+                # Module not in index, remove from working tree
+                rmtree(fname)
     # Add new modules
     messages = []
     for rname, modules in addons.items():
-        print_header("Filtering '{}'".format(rname), '-')
-        repo = repos.get(rname) or repos.get("./{}".format(rname))
+        print_header(f"Filtering '{rname}'", '-')
+        repo = repos.get(rname) or repos.get(f"./{rname}")
         if not repo:
-            raise UserException("addons.yml entry {} not found in repos.yml".format(rname))
+            raise UserException(f"addons.yml entry {rname} not found in repos.yml")
         repo_message = filter_repo(tmp_path, rname, repo, modules)
         messages.append(repo_message)
     print_header("Finished filtering", '*')
-    # Commit changes, if any, and push them to remote if specified
+    # If not in release mode remove files from the index
     if not release:
-        git("restore", "--staged", ".")
+        git("rm", "-rf", "--cached", ".")
         print("Release disabled, nothing commited")
+    # Otherwise, commit changes if any, and push them to remote if specified
     elif filter(None, messages) and git["diff", "--staged", "--quiet"] & TF(1):
         messages = [f"[AUTO] {__package__} {__version__}"] + messages
         message = "\n".join(messages)
@@ -136,7 +142,7 @@ def filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci)
                 branch = os.environ.get("CI_COMMIT_BRANCH")
                 if not branch:
                     raise UserException("Unset environment variable CI_COMMIT_BRANCH")
-                git("push", "origin", "HEAD:{}".format(branch))
+                git("push", "origin", f"HEAD:{branch}")
             else:
                 raise UserException("addons.yml entry {} not found in repos.yml".format(rname))
             print("Commit pushed to remote")
@@ -155,7 +161,7 @@ def set_argv(new_argv):
 # Create a git repo if not present and aggregate addon repositories
 def initialize_repos(output_path, tmp_path, repos):
     if not output_path.is_dir():
-        print("Initializing git repository in '{}'".format(output_path))
+        print(f"Initializing git repository in '{output_path}'")
         Path(output_path).mkdir(parents=True, exist_ok=True)
     git("-C", output_path, "init")
 
@@ -165,7 +171,7 @@ def initialize_repos(output_path, tmp_path, repos):
     new_argv = ["gitaggregate", "-c", "repos.yml"]
     with set_argv(new_argv):
         gitaggregate()
-    print("gitaggregate output written to '{}'".format(tmp_path))
+    print(f"gitaggregate output written to '{tmp_path}'")
 
 #####################################################################
 
@@ -175,7 +181,7 @@ def api_main(input_path=None, output_path=None, clean=True, release=False, push=
     output_path = Path(output_path).resolve() if output_path else Path.cwd()
     tmp_path = Path(mkdtemp())
 
-    print("Loading configuration files from '{}'".format(input_path))
+    print(f"Loading configuration files from '{input_path}'")
     repos = load_yml(input_path/"repos", True)
     addons = load_yml(input_path/"addons")
 
@@ -184,7 +190,7 @@ def api_main(input_path=None, output_path=None, clean=True, release=False, push=
         repos = update_remotes(repos)
 
     try:
-        print("Filtering addons to '{}'".format(output_path))
+        print(f"Filtering addons to '{output_path}'")
         initialize_repos(output_path, tmp_path, repos)
         filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci)
     except Exception as e:
