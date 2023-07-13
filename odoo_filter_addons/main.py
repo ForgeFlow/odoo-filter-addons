@@ -109,7 +109,12 @@ def filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci)
     # Remove old modules
     for fname in next(os.walk("."))[1]:
         if is_module(fname):
-            git("rm", "-rf", fname)
+            try:
+                # Remove from index and working tree
+                git("rm", "-rf", fname)
+            except ProcessExecutionError:
+                # Module not in index, remove from working tree
+                rmtree(fname)
     # Add new modules
     messages = []
     for rname, modules in addons.items():
@@ -122,7 +127,7 @@ def filter_repos(output_path, tmp_path, repos, addons, release, push, gitlab_ci)
     print_header("Finished filtering", '*')
     # Commit changes, if any, and push them to remote if specified
     if not release:
-        git("restore", "--staged", ".")
+        git("rm", "-rf", "--cached", ".")
         print("Release disabled, nothing commited")
     elif filter(None, messages) and git["diff", "--staged", "--quiet"] & TF(1):
         messages = [f"[AUTO] {__package__} {__version__}"] + messages
