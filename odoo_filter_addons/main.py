@@ -95,11 +95,16 @@ def filter_repo(agg_path, rname, repo, modules):
     # Create a message that will allow tracing the commit
     lines = [rname]
     for merge in repo["merges"]:
-        if "merge-requests" in merge or "pull" in merge:
-            last_hash = git("-C", rpath, "ls-remote", "--exit-code", *merge.split()).split()[0]
+        merge = merge.strip()
+        remote, ref = merge.split()
+        if ref.startswith("refs/"):
+            commit = git("-C", rpath, "ls-remote", "--exit-code", remote, ref).split()[0]
+            lines.append(f"{merge} {commit}")
+        elif len(ref) == 40:
+            lines.append(merge)
         else:
-            last_hash = git("-C", rpath, "rev-parse", merge.replace(" ", "/"))
-        lines.append(f"{merge} {last_hash}".strip())
+            commit = git("-C", rpath, "rev-parse", merge.replace(" ", "/"))
+            lines.append(f"{merge} {commit}")
     message = "\n".join(lines)
     print(f"Partial message:\n{message}")
     return message
