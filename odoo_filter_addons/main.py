@@ -98,12 +98,12 @@ def filter_repo(agg_path, rname, repo, modules):
         merge = merge.strip()
         remote, ref = merge.split()
         if ref.startswith("refs/"):
-            commit = git("-C", rpath, "ls-remote", "--exit-code", remote, ref).split()[0]
+            commit = git("-C", rpath, "ls-remote", "--exit-code", remote, ref).strip().split()[0]
             lines.append(f"{merge} {commit}")
         elif len(ref) == 40:
             lines.append(merge)
         else:
-            commit = git("-C", rpath, "rev-parse", merge.replace(" ", "/"))
+            commit = git("-C", rpath, "rev-parse", merge.replace(" ", "/")).strip()
             lines.append(f"{merge} {commit}")
     message = "\n".join(lines)
     print(f"Partial message:\n{message}")
@@ -177,6 +177,7 @@ def initialize_repos(output_path, agg_path, repos):
     with set_argv(new_argv):
         gitaggregate()
     print(f"gitaggregate output written to '{agg_path}'")
+
 #####################################################################
 
 # API entry point
