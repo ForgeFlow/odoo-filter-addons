@@ -97,7 +97,7 @@ def filter_repo(agg_path, rname, repo, modules):
     for merge in repo["merges"]:
         merge = merge.strip()
         remote, ref = merge.split()
-        if ref.startswith("refs/"):
+        if "/" in ref:
             commit = git("-C", rpath, "ls-remote", "--exit-code", remote, ref).strip().split()[0]
             lines.append(f"{merge} {commit}")
         elif len(ref) == 40:
