@@ -5,6 +5,9 @@ readme = "README.md"
 authors = [
     { name="Pablo Esteban", email="pablo.esteban@forgeflow.com" },
 ]
+urls.Homepage = "https://github.com/ForgeFlow/odoo-filter-addons"
+urls.Bugtracker = "https://github.com/ForgeFlow/odoo-filter-addons/issues"
+
 classifiers = [
     "Intended Audience :: Developers",
     "Topic :: Utilities",
