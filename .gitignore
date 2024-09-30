@@ -2,3 +2,6 @@
 __pycache__
 *.egg-info
 *.swp
+.idea  # Pycharm
+.DS_Store  # OSX Files
+.vscode # Visual Studio
